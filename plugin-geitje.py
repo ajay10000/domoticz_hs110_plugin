@@ -3,24 +3,24 @@
 # Plugin based on reverse engineering of the TP-Link HS110, courtesy of Lubomir Stroetmann and Tobias Esser.
 # https://www.softscheck.com/en/reverse-engineering-tp-link-hs110/
 #
-# Original Author: Dan Hallgren
+# Author: Dan Hallgren
 #
 """
-<plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110/v2" version="0.2.0">
+<plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110" version="0.1.0">
     <description>
         <h2>TP-Link Wi-Fi Smart Plug</h2>
         <ul style="list-sytel-type:square">
             <li>on/off switching</li>
-            <li>emeter realtime power (HS110/v2)</li>
-            <li>emeter realtime current (HS110/v2)</li>
-            <li>emeter realtime voltage (HS110/v2)</li>
+            <li>emeter realtime power (HS110)</li>
+            <li>emeter realtime current (HS110)</li>
+            <li>emeter realtime voltage (HS110)</li>
         </ul>
         <h3>Devices</h3>
         <ul style="list-style-type:square">
             <li>switch - On/Off</li>
-            <li>power - Realtime power in watts</li>
-            <li>current - Realtime current in amps</li>
-            <li>voltage - Realtime voltage in volts</li>
+            <li>power - Realtime power in Watts</li>
+            <li>current - Realtime current in ampere</li>
+            <li>voltage - Voltage input</li>
         </ul>
     </description>
     <params>
@@ -28,9 +28,9 @@
         <param field="Mode1" label="Model" width="150px" required="false">
              <options>
                 <option label="HS100" value="HS100" default="true"/>
-                <option label="HS110" value="HS110"  default="false" />
+                <option label="HS110" value="HS110"  default="false"/>
                 <option label="HS110v2" value="HS110v2"  default="false"/>
-                </options>
+            </options>
         </param>
         <param field="Mode6" label="Debug" width="75px">
             <options>
@@ -41,27 +41,23 @@
     </params>
 </plugin>
 """
-import json, socket, Domoticz, requests
+import json
+import socket
 
-base_url = "http://rpi3:8080/"
-interval = 1
-user_variable_name = "HS110_1_State"
-user_variable_idx = 3
-user_variable_value = ""
-user_variable_type = 2 #string
-HS110_divider = 1000  # 1000 or 1 depending on version of HS110
+import Domoticz
 
 PORT = 9999
 STATES = ('off', 'on', 'unknown')
+
 
 class TpLinkSmartPlugPlugin:
     enabled = False
     connection = None
 
     def __init__(self):
-        self.interval = interval  # *10 seconds
+        self.interval = 6  # 6*10 seconds
         self.heartbeatcounter = 0
-        
+
     def onStart(self):
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
@@ -71,22 +67,20 @@ class TpLinkSmartPlugPlugin:
             Domoticz.Device(Name="switch", Unit=1, TypeName="Switch", Used=1).Create()
             Domoticz.Log("Tp-Link smart plug device created")
 
-        if Parameters["Mode1"] in "HS110" and len(Devices) <= 1:
+        if (Parameters["Mode1"] == "HS110" or Parameters["Mode1"] == "HS110v2") and len(Devices) <= 1:
             # Create more devices here
-            Domoticz.Device(Name="emeter current (A)", Unit=2, Type=243, Subtype=23).Create()
-            Domoticz.Device(Name="emeter voltage (V)", Unit=3, Type=243, Subtype=8).Create()
-            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=31, Image=1, Used=1).Create()
-            
+            Domoticz.Device(Name="(A)", Unit=2, Type=243, Subtype=23).Create()
+            Domoticz.Device(Name="(V)", Unit=3, Type=243, Subtype=8).Create()
+            Domoticz.Device(Name="(W)", Unit=4, Type=243, Subtype=29).Create()
+
         state = self.get_switch_state()
-        # Update user variable, this should always be true current state of switch
-        user_variable_value = self.getVariable(user_variable_idx)
         if state in 'off':
             Devices[1].Update(0, '0')
         elif state in 'on':
             Devices[1].Update(1, '100')
         else:
             Devices[1].Update(1, '50')
-    
+
     def onStop(self):
         # Domoticz.Log("onStop called")
         pass
@@ -101,27 +95,30 @@ class TpLinkSmartPlugPlugin:
 
     def onCommand(self, unit, command, level, hue):
         Domoticz.Log("onCommand called for Unit " +
-            str(unit) + ": Parameter '" + str(command) + "', Level: " + str(level))
+                     str(unit) + ": Parameter '" + str(command) + "', Level: " + str(level))
 
         if command.lower() == 'on':
-            new_state = 1
-            state = (1, '100')
-        else:
-            new_state = 0
-            state = (0, '0')
-        cmd = {
-            "system": {
-                "set_relay_state": {"state": new_state}
+            cmd = {
+                "system": {
+                    "set_relay_state": {"state": 1}
+                }
             }
-        }
-        
+            state = (1, '100')
+
+        elif command.lower() == 'off':
+            cmd = {
+                "system": {
+                    "set_relay_state": {"state": 0}
+                }
+            }
+            state = (0, '0')
+
         result = self._send_json_cmd(json.dumps(cmd))
         Domoticz.Debug("got response: {}".format(result))
 
         err_code = result.get('system', {}).get('set_relay_state', {}).get('err_code', 1)
 
         if err_code == 0:
-            # Update Domoticz
             Devices[1].Update(*state)
 
         # Reset counter so we trigger emeter poll next heartbeat
@@ -137,20 +134,14 @@ class TpLinkSmartPlugPlugin:
 
     def onHeartbeat(self):
         if self.heartbeatcounter % self.interval == 0:
-          self.update_emeter_values()
-          state = self.get_switch_state()
-          # Check if Domoticz User Variable = switch state
-          # Don't do anything if they are equal
-          user_variable_value = self.getVariable(user_variable_idx)
-          Domoticz.Debug("User variable: {}, Switch state: {}".format(user_variable_value, state))
-          if user_variable_value != state:
-            self.setVariable(user_variable_name, user_variable_type, state)
-            if state in 'off':
-                Devices[1].Update(0, '0')
-            elif state in 'on':
-                Devices[1].Update(1, '100')
-            else:
-                Devices[1].Update(1, '50')
+            self.update_emeter_values()
+        state = self.get_switch_state()
+        if state in 'off':
+            Devices[1].Update(0, '0')
+        elif state in 'on':
+            Devices[1].Update(1, '100')
+        else:
+            Devices[1].Update(1, '50')
         self.heartbeatcounter += 1
 
     def _encrypt(self, data):
@@ -183,22 +174,21 @@ class TpLinkSmartPlugPlugin:
             Domoticz.Debug('data len: {}'.format(len(data)))
             sock.close()
         except socket.error as e:
-            Domoticz.Log('Send command error: {}'.format(str(e)))
+            Domoticz.Log('send command error: {}'.format(str(e)))
             return ret
             #raise
-            
+
         try:
             json_resp = self._decrypt(data[4:])
             ret = json.loads(json_resp)
         except (TypeError, JSONDecodeError) as e:
-            Domoticz.Log('Decode error: {}'.format(str(e)))
-            Domoticz.Log('Data: {}'.format(str(data)))
+            Domoticz.Log('decode error: {}'.format(str(e)))
+            Domoticz.Log('data: {}'.format(str(data)))
             #raise
 
         return ret
-
     def update_emeter_values(self):
-        if Parameters["Mode1"] in "HS110":
+        if Parameters["Mode1"] == "HS110":
             cmd = {
                 "emeter": {
                     "get_realtime": {}
@@ -207,20 +197,35 @@ class TpLinkSmartPlugPlugin:
 
             result = self._send_json_cmd(json.dumps(cmd))
             Domoticz.Debug("got response: {}".format(result))
-            
+
+            realtime_result = result.get('emeter', {}).get('get_realtime', {})
+            err_code = realtime_result.get('err_code', 1)
+
+            if err_code == 0:
+                Devices[2].Update(nValue=0, sValue=str(round(realtime_result['current'],2)))
+                Devices[3].Update(nValue=0, sValue=str(round(realtime_result['voltage'],2)))
+                Devices[4].Update(nValue=0, sValue=str(round(realtime_result['power'],2)) + ";" + str(realtime_result['total']*1000))
+        if Parameters["Mode1"] == "HS110v2":
+            cmd = {
+                "emeter": {
+                    "get_realtime": {}
+                }
+            }
+
+            result = self._send_json_cmd(json.dumps(cmd))
+            Domoticz.Debug("got response: {}".format(result))
+
             if result != {}:
               realtime_result = result.get('emeter', {}).get('get_realtime', {})
               err_code = realtime_result.get('err_code', 1)
 
               if err_code == 0:
-                  if HS110_divider == 1000:
-                      Devices[2].Update(nValue=0, sValue=str(round(realtime_result['current_ma'] / 1000,2)))
-                      Devices[3].Update(nValue=0, sValue=str(round(realtime_result['voltage_mv'] / 1000,2)))
-                      Devices[4].Update(nValue=0, sValue=str(round(realtime_result['power_mw'] / 1000,2)))
-                  else:
-                      Devices[2].Update(nValue=0, sValue=str(round(realtime_result['current'],2)))
-                      Devices[3].Update(nValue=0, sValue=str(round(realtime_result['voltage'],2)))
-                      Devices[4].Update(nValue=0, sValue=str(round(realtime_result['power'],2)) + ";" + str(realtime_result['total']*1000))
+                  Devices[2].Update(nValue=0, sValue=str(round(realtime_result['current_ma']/1000,2)))
+                  Devices[3].Update(nValue=0, sValue=str(round(realtime_result['voltage_mv']/1000,2)))
+                  Devices[4].Update(nValue=0, sValue=str(round(realtime_result['power_mw']/1000,2)) + ";" + str(realtime_result['total_wh']))
+
+#power = round(float(json_data['emeter']['get_realtime']['power_mw']) / 1000,2)
+
 
     def get_switch_state(self):
         cmd = {
@@ -229,67 +234,61 @@ class TpLinkSmartPlugPlugin:
             }
         }
         result = self._send_json_cmd(json.dumps(cmd))
-        Domoticz.Debug(result)
+        print(result)
+
         err_code = result.get('system', {}).get('get_sysinfo', {}).get('err_code', 1)
+
         if err_code == 0:
             state = result['system']['get_sysinfo']['relay_state']
         else:
             state = 2
+
         return STATES[state]
 
-    def send_json(self, json_url):
-        result = requests.get(json_url).json()
-        Domoticz.Debug("Response: {}".format(result))
-        return result
-        
-    def setVariable(self, vname, vtype, vvalue):
-        json_url = base_url + "json.htm?type=command&param=updateuservariable&vname=" + str(vname) + "&vtype=" + str(vtype) + "&vvalue=" + str(vvalue)
-        Domoticz.Debug("setVariable JSON URL: {}".format(json_url))
-        var = self.send_json(json_url)
-        return var
-        
-    def getVariable(self, vidx):
-        json_url = base_url + "json.htm?type=command&param=getuservariable&idx=" + str(vidx)
-        Domoticz.Debug("getVariable JSON URL: {}".format(json_url))
-        var = self.send_json(json_url)
-        ret = var["result"][0]["Value"]
-        Domoticz.Debug(ret)
-        return ret
-        
+
 global _plugin
 _plugin = TpLinkSmartPlugPlugin()
+
 
 def onStart():
     global _plugin
     _plugin.onStart()
 
+
 def onStop():
     global _plugin
     _plugin.onStop()
+
 
 def onConnect(Connection, Status, Description):
     global _plugin
     _plugin.onConnect(Connection, Status, Description)
 
+
 def onMessage(Connection, Data, Status, Extra):
     global _plugin
     _plugin.onMessage(Connection, Data, Status, Extra)
+
 
 def onCommand(Unit, Command, Level, Hue):
     global _plugin
     _plugin.onCommand(Unit, Command, Level, Hue)
 
+
 def onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile):
     global _plugin
     _plugin.onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile)
+
 
 def onDisconnect(Connection):
     global _plugin
     _plugin.onDisconnect(Connection)
 
+
 def onHeartbeat():
     global _plugin
     _plugin.onHeartbeat()
+
 
 # Generic helper functions
 def DumpConfigToLog():
@@ -305,3 +304,4 @@ def DumpConfigToLog():
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
+
