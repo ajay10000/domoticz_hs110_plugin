@@ -43,13 +43,16 @@
 """
 import json, socket, Domoticz, requests
 
-base_url = "http://rpi3:8080/"
-interval = 1
-user_variable_name = "HS110_1_State"
-user_variable_idx = 3
-user_variable_value = ""
+# Start user editable variables
+base_url = "http://rpi3:8080/"  # Modify with your IP# or domain
+interval = 1  # heartbeat in 10 second multiples
+user_variable_name = "HS110_1_State"  # Your Domoticz User Variable name
+user_variable_idx = 3 # Your User Variable Index
+user_variable_value = ""  
 user_variable_type = 2 #string
-HS110_divider = 1000  # 1000 or 1 depending on version of HS110
+HS110_divider = 1000  # 1000 or 1 depending on your hardware version of HS110
+suppress_socket_error = True  # Suppress error messages in Domoticz after the first
+# End user editable variables
 
 PORT = 9999
 STATES = ('off', 'on', 'unknown')
@@ -61,6 +64,7 @@ class TpLinkSmartPlugPlugin:
     def __init__(self):
         self.interval = interval  # *10 seconds
         self.heartbeatcounter = 0
+        self.socket_error_suppress = False
         
     def onStart(self):
         if Parameters["Mode6"] == "Debug":
@@ -72,7 +76,7 @@ class TpLinkSmartPlugPlugin:
             Domoticz.Log("Tp-Link smart plug device created")
 
         if Parameters["Mode1"] in "HS110" and len(Devices) <= 1:
-            # Create more devices here
+            # Create measuring devices here
             Domoticz.Device(Name="emeter current (A)", Unit=2, Type=243, Subtype=23).Create()
             Domoticz.Device(Name="emeter voltage (V)", Unit=3, Type=243, Subtype=8).Create()
             Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=31, Image=1, Used=1).Create()
@@ -173,9 +177,11 @@ class TpLinkSmartPlugPlugin:
             Domoticz.Debug('data len: {}'.format(len(data)))
             sock.close()
         except socket.error as e:
-            Domoticz.Log('Send command error: {}'.format(str(e)))
+            if self.socket_error_suppress != True:
+                Domoticz.Log('Send command error: {}'.format(str(e)))
+                if suppress_socket_error == True:
+                    self.socket_error_suppress = True
             return ret
-            #raise
             
         try:
             json_resp = self._decrypt(data[4:])
@@ -183,7 +189,6 @@ class TpLinkSmartPlugPlugin:
         except (TypeError, JSONDecodeError) as e:
             Domoticz.Log('Decode error: {}'.format(str(e)))
             Domoticz.Log('Data: {}'.format(str(data)))
-            #raise
 
         return ret
 
