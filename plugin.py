@@ -78,29 +78,24 @@ class TpLinkSmartPlugPlugin:
             Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=31, Image=1, Used=1).Create()
             
         state = self.get_switch_state()
-        # Update user variable, this should always be true current state of switch
-        user_variable_value = self.getVariable(user_variable_idx)
-        if state in 'off':
-            Devices[1].Update(0, '0')
-        elif state in 'on':
-            Devices[1].Update(1, '100')
-        else:
-            Devices[1].Update(1, '50')
+        # Update user variable, this should always reflect current state of switch
+        user_variable_value = self.get_user_variable(user_variable_idx)
+        self.set_switch_state(state)
     
     def onStop(self):
-        # Domoticz.Log("onStop called")
+        Domoticz.Debug("onStop called")
         pass
 
     def onConnect(self, Connection, Status, Description):
-        # Domoticz.Log("onConnect called")
+        Domoticz.Debug("onConnect called")
         pass
 
     def onMessage(self, Connection, Data, Status, Extra):
-        # Domoticz.Log("onMessage called")
+        Domoticz.Debug("onMessage called")
         pass
 
     def onCommand(self, unit, command, level, hue):
-        Domoticz.Log("onCommand called for Unit " +
+        Domoticz.Debug("onCommand called for Unit " +
             str(unit) + ": Parameter '" + str(command) + "', Level: " + str(level))
 
         if command.lower() == 'on':
@@ -128,29 +123,24 @@ class TpLinkSmartPlugPlugin:
         self.heartbeatcounter = 0
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
-        Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status +
+        Domoticz.Debug("Notification: " + Name + "," + Subject + "," + Text + "," + Status +
                      "," + str(Priority) + "," + Sound + "," + ImageFile)
 
     def onDisconnect(self, Connection):
-        # Domoticz.Log("onDisconnect called")
+        Domoticz.Debug("onDisconnect called")
         pass
 
     def onHeartbeat(self):
         if self.heartbeatcounter % self.interval == 0:
-          self.update_emeter_values()
-          state = self.get_switch_state()
-          # Check if Domoticz User Variable = switch state
-          # Don't do anything if they are equal
-          user_variable_value = self.getVariable(user_variable_idx)
-          Domoticz.Debug("User variable: {}, Switch state: {}".format(user_variable_value, state))
-          if user_variable_value != state:
-            self.setVariable(user_variable_name, user_variable_type, state)
-            if state in 'off':
-                Devices[1].Update(0, '0')
-            elif state in 'on':
-                Devices[1].Update(1, '100')
-            else:
-                Devices[1].Update(1, '50')
+            self.update_emeter_values()
+        state = self.get_switch_state()
+        # Check if Domoticz User Variable = switch state
+        # Don't do anything if they are equal
+        user_variable_value = self.get_user_variable(user_variable_idx)
+        Domoticz.Debug("User variable: {}, Switch state: {}, Domoticz device state: {}".format(user_variable_value, state, STATES[Devices[1].nValue]))
+        if (user_variable_value != state) or (STATES[Devices[1].nValue] != state):
+            self.set_user_variable(user_variable_name, user_variable_type, state)
+            self.set_switch_state(state)
         self.heartbeatcounter += 1
 
     def _encrypt(self, data):
@@ -229,7 +219,7 @@ class TpLinkSmartPlugPlugin:
             }
         }
         result = self._send_json_cmd(json.dumps(cmd))
-        Domoticz.Debug(result)
+        Domoticz.Debug(str(result))
         err_code = result.get('system', {}).get('get_sysinfo', {}).get('err_code', 1)
         if err_code == 0:
             state = result['system']['get_sysinfo']['relay_state']
@@ -237,20 +227,28 @@ class TpLinkSmartPlugPlugin:
             state = 2
         return STATES[state]
 
+    def set_switch_state(self, state):
+        if state in 'off':
+            Devices[1].Update(0, '0')
+        elif state in 'on':
+            Devices[1].Update(1, '100')
+        else:
+            Devices[1].Update(1, '50')
+            
     def send_json(self, json_url):
         result = requests.get(json_url).json()
         Domoticz.Debug("Response: {}".format(result))
         return result
         
-    def setVariable(self, vname, vtype, vvalue):
+    def set_user_variable(self, vname, vtype, vvalue):
         json_url = base_url + "json.htm?type=command&param=updateuservariable&vname=" + str(vname) + "&vtype=" + str(vtype) + "&vvalue=" + str(vvalue)
-        Domoticz.Debug("setVariable JSON URL: {}".format(json_url))
+        Domoticz.Debug("set_user_variable JSON URL: {}".format(json_url))
         var = self.send_json(json_url)
         return var
         
-    def getVariable(self, vidx):
+    def get_user_variable(self, vidx):
         json_url = base_url + "json.htm?type=command&param=getuservariable&idx=" + str(vidx)
-        Domoticz.Debug("getVariable JSON URL: {}".format(json_url))
+        Domoticz.Debug("get_user_variable JSON URL: {}".format(json_url))
         var = self.send_json(json_url)
         ret = var["result"][0]["Value"]
         Domoticz.Debug(ret)
