@@ -181,6 +181,10 @@ class TpLinkSmartPlugPlugin:
                 Domoticz.Log('Send command error: {}'.format(str(e)))
                 if suppress_socket_error == True:
                     self.socket_error_suppress = True
+                    # Switch is probably off, so reflect this in Domoticz
+                    Domoticz.Log("Turn Domoticz device off as hardware is not responding")
+                    self.set_switch_state("off")
+                    self.set_user_variable(user_variable_name, user_variable_type, "off")
             return ret
             
         try:
@@ -238,7 +242,7 @@ class TpLinkSmartPlugPlugin:
         elif state in 'on':
             Devices[1].Update(1, '100')
         else:
-            Devices[1].Update(1, '50')
+            Devices[1].Update(0, '50')
             
     def send_json(self, json_url):
         result = requests.get(json_url).json()
