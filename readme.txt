@@ -1,8 +1,8 @@
 
-To update your current script.
-1. Create Domoticz User Variable. 
+To update your current TP-Link HS100/110/v2 script.
+1. Create Domoticz User Variable (Setup -> More options -> User variables)
 Example: Variable name = HS110_1_State, Variable type = String, Current value = off
-2. Get the User Variable Index from Domoticz to include in plugin.py.
+2. Get the User Variable Index from Domoticz to include in plugin.py (user_variable_idx below).
 
 3. Set up user defined variables in plugin.py
 # Start user editable variables
