@@ -13,3 +13,6 @@ user_variable_value = ""
 user_variable_type = 2 #string
 HS110_divider = 1000  # 1000 or 1 depending on your hardware version of HS110
 suppress_socket_error = True  # Suppress error messages in Domoticz after the first
+
+Copy plugin.py to Domoticz plugins folder
+Example: /home/pi/domoticz/plugins/hs110
