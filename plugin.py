@@ -142,9 +142,12 @@ class TpLinkSmartPlugPlugin:
         # Don't do anything if they are equal
         user_variable_value = self.get_user_variable(user_variable_idx)
         Domoticz.Debug("User variable: {}, Switch state: {}, Domoticz device state: {}".format(user_variable_value, state, STATES[Devices[1].nValue]))
-        if (user_variable_value != state) or (STATES[Devices[1].nValue] != state):
+        if user_variable_value != state:
             self.set_user_variable(user_variable_name, user_variable_type, state)
+        if (state != STATES[2]) and (STATES[Devices[1].nValue] != state):
             self.set_switch_state(state)
+        if (state == STATES[2]) and (STATES[Devices[1].nValue] == STATES[1]):  # device state unknown
+            self.set_switch_state(STATES[0])  # turn off Domoticz switch
         self.heartbeatcounter += 1
 
     def _encrypt(self, data):
@@ -181,10 +184,10 @@ class TpLinkSmartPlugPlugin:
                 Domoticz.Log('Send command error: {}'.format(str(e)))
                 if suppress_socket_error == True:
                     self.socket_error_suppress = True
-                    # Switch is probably off, so reflect this in Domoticz
+                    # Switch is probably off/unavailable, so reflect this in Domoticz
                     Domoticz.Log("Turn Domoticz device off as hardware is not responding")
-                    self.set_switch_state("off")
-                    self.set_user_variable(user_variable_name, user_variable_type, "off")
+                    self.set_switch_state(STATES[2])
+                    self.set_user_variable(user_variable_name, user_variable_type, STATES[2])
             return ret
             
         try:
