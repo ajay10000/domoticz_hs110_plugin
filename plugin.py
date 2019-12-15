@@ -79,7 +79,7 @@ class TpLinkSmartPlugPlugin:
             # Create measuring devices here
             Domoticz.Device(Name="emeter current (A)", Unit=2, Type=243, Subtype=23).Create()
             Domoticz.Device(Name="emeter voltage (V)", Unit=3, Type=243, Subtype=8).Create()
-            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=31, Image=1, Used=1).Create()
+            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=29).Create()   #31, Image=1, Used=1).Create()
             
         state = self.get_switch_state()
         # Update user variable, this should always reflect current state of switch
