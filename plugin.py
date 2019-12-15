@@ -4,6 +4,7 @@
 # https://www.softscheck.com/en/reverse-engineering-tp-link-hs110/
 #
 # Original Author: Dan Hallgren
+# Modified by: Andrew P
 #
 """
 <plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110/v2" version="0.2.0">
@@ -135,7 +136,7 @@ class TpLinkSmartPlugPlugin:
         if self.heartbeatcounter % self.interval == 0:
             self.update_emeter_values()
         state = self.get_switch_state()
-        Domoticz.Log("Last state: {}, Switch state: {}, Domoticz device state: {}".format(self.last_state, state, STATES[Devices[1].nValue]))
+        Domoticz.Debug("Last state: {}, Switch state: {}, Domoticz device state: {}".format(self.last_state, state, STATES[Devices[1].nValue]))
         if (self.last_state == STATES[2]) and (state != STATES[2]):
             Domoticz.Log("Switch device is available, state is {}".format(state))
             self.state_flag = False
