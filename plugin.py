@@ -41,15 +41,11 @@
     </params>
 </plugin>
 """
-import json, socket, Domoticz, requests
+import json, socket, Domoticz
 
 # Start user editable variables
 base_url = "http://rpi3:8080/"  # Modify with your IP# or domain
 interval = 1  # heartbeat in 10 second multiples
-user_variable_name = "HS110_1_State"  # Your Domoticz User Variable name
-user_variable_idx = 3 # Your User Variable Index
-user_variable_value = ""  
-user_variable_type = 2 #string
 HS110_divider = 1000  # 1000 or 1 depending on your hardware version of HS110
 suppress_socket_error = True  # Suppress error messages in Domoticz after the first
 # End user editable variables
@@ -65,6 +61,8 @@ class TpLinkSmartPlugPlugin:
         self.interval = interval  # *10 seconds
         self.heartbeatcounter = 0
         self.socket_error_suppress = False
+        self.last_state = STATES[2]
+        self.state_flag = False
         
     def onStart(self):
         if Parameters["Mode6"] == "Debug":
@@ -79,12 +77,11 @@ class TpLinkSmartPlugPlugin:
             # Create measuring devices here
             Domoticz.Device(Name="emeter current (A)", Unit=2, Type=243, Subtype=23).Create()
             Domoticz.Device(Name="emeter voltage (V)", Unit=3, Type=243, Subtype=8).Create()
-            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=29).Create()   #31, Image=1, Used=1).Create()
+            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=29).Create()
             
         state = self.get_switch_state()
-        # Update user variable, this should always reflect current state of switch
-        user_variable_value = self.get_user_variable(user_variable_idx)
-        self.set_switch_state(state)
+        self.last_state = state
+        self.set_domoticz_state(state)
     
     def onStop(self):
         Domoticz.Debug("onStop called")
@@ -138,16 +135,18 @@ class TpLinkSmartPlugPlugin:
         if self.heartbeatcounter % self.interval == 0:
             self.update_emeter_values()
         state = self.get_switch_state()
-        # Check if Domoticz User Variable = switch state
-        # Don't do anything if they are equal
-        user_variable_value = self.get_user_variable(user_variable_idx)
-        Domoticz.Debug("User variable: {}, Switch state: {}, Domoticz device state: {}".format(user_variable_value, state, STATES[Devices[1].nValue]))
-        if user_variable_value != state:
-            self.set_user_variable(user_variable_name, user_variable_type, state)
+        Domoticz.Log("Last state: {}, Switch state: {}, Domoticz device state: {}".format(self.last_state, state, STATES[Devices[1].nValue]))
+        if (self.last_state == STATES[2]) and (state != STATES[2]):
+            Domoticz.Log("Switch device is available, state is {}".format(state))
+            self.state_flag = False
+        if self.last_state != state:
+            self.last_state = state
         if (state != STATES[2]) and (STATES[Devices[1].nValue] != state):
-            self.set_switch_state(state)
-        if (state == STATES[2]) and (STATES[Devices[1].nValue] == STATES[1]):  # device state unknown
-            self.set_switch_state(STATES[0])  # turn off Domoticz switch
+            self.set_domoticz_state(state)
+        if (state == STATES[2]) and (self.state_flag == False):  # device state unknown
+            self.set_domoticz_state(STATES[0])  # turn off Domoticz switch
+            Domoticz.Log("Switch device unavailable, Domoticz device switched off")
+            self.state_flag = True
         self.heartbeatcounter += 1
 
     def _encrypt(self, data):
@@ -178,16 +177,17 @@ class TpLinkSmartPlugPlugin:
             sock.send(data)
             data = sock.recv(1024)
             Domoticz.Debug('data len: {}'.format(len(data)))
-            sock.close()
+            self.socket_error_suppress = False
         except socket.error as e:
-            if self.socket_error_suppress != True:
+            if self.socket_error_suppress == False:
                 Domoticz.Log('Send command error: {}'.format(str(e)))
                 if suppress_socket_error == True:
                     self.socket_error_suppress = True
                     # Switch is probably off/unavailable, so reflect this in Domoticz
-                    Domoticz.Log("Turn Domoticz device off as hardware is not responding")
-                    self.set_switch_state(STATES[2])
-                    self.set_user_variable(user_variable_name, user_variable_type, STATES[2])
+                    Domoticz.Log("Switching Domoticz device off as hardware is not responding")
+                    self.set_domoticz_state(STATES[2])
+                    self.last_state = STATES[2]
+            sock.close()
             return ret
             
         try:
@@ -239,32 +239,13 @@ class TpLinkSmartPlugPlugin:
             state = 2
         return STATES[state]
 
-    def set_switch_state(self, state):
+    def set_domoticz_state(self, state):
         if state in 'off':
             Devices[1].Update(0, '0')
         elif state in 'on':
             Devices[1].Update(1, '100')
         else:
             Devices[1].Update(0, '50')
-            
-    def send_json(self, json_url):
-        result = requests.get(json_url).json()
-        Domoticz.Debug("Response: {}".format(result))
-        return result
-        
-    def set_user_variable(self, vname, vtype, vvalue):
-        json_url = base_url + "json.htm?type=command&param=updateuservariable&vname=" + str(vname) + "&vtype=" + str(vtype) + "&vvalue=" + str(vvalue)
-        Domoticz.Debug("set_user_variable JSON URL: {}".format(json_url))
-        var = self.send_json(json_url)
-        return var
-        
-    def get_user_variable(self, vidx):
-        json_url = base_url + "json.htm?type=command&param=getuservariable&idx=" + str(vidx)
-        Domoticz.Debug("get_user_variable JSON URL: {}".format(json_url))
-        var = self.send_json(json_url)
-        ret = var["result"][0]["Value"]
-        Domoticz.Debug(ret)
-        return ret
         
 global _plugin
 _plugin = TpLinkSmartPlugPlugin()
