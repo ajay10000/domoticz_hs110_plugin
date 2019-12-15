@@ -9,3 +9,5 @@ suppress_socket_error = True  # Suppress error messages in Domoticz after the fi
 
 2. Copy plugin.py to Domoticz plugins folder
 Example: /home/pi/domoticz/plugins/hs110
+
+NOTE: Change a Domoticz.Debug(...) line to Domoticz.Log(...) to log specific lines without turning on Debug mode. 
