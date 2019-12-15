@@ -135,7 +135,7 @@ class TpLinkSmartPlugPlugin:
         if self.heartbeatcounter % self.interval == 0:
             self.update_emeter_values()
         state = self.get_switch_state()
-        Domoticz.Debug("Last state: {}, Switch state: {}, Domoticz device state: {}".format(self.last_state, state, STATES[Devices[1].nValue]))
+        Domoticz.Log("Last state: {}, Switch state: {}, Domoticz device state: {}".format(self.last_state, state, STATES[Devices[1].nValue]))
         if (self.last_state == STATES[2]) and (state != STATES[2]):
             Domoticz.Log("Switch device is available, state is {}".format(state))
             self.state_flag = False
