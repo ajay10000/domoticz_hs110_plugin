@@ -7,7 +7,7 @@
 # Modified by: Andrew P
 #
 """
-<plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110/v2" version="0.2.0">
+<plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110/v2" version="0.2.5">
     <description>
         <h2>TP-Link Wi-Fi Smart Plug</h2>
         <ul style="list-sytel-type:square">
@@ -49,6 +49,7 @@ base_url = "http://rpi3:8080/"  # Modify with your IP# or domain
 interval = 1  # heartbeat in 10 second multiples
 HS110_divider = 1000  # 1000 or 1 depending on your hardware version of HS110
 suppress_socket_error = True  # Suppress error messages in Domoticz after the first
+create_device = False # True if you need to create a device. 
 # End user editable variables
 
 PORT = 9999
@@ -61,25 +62,27 @@ class TpLinkSmartPlugPlugin:
     def __init__(self):
         self.interval = interval  # *10 seconds
         self.heartbeatcounter = 0
-        self.socket_error_suppress = False
+        self.socket_error_suppress = suppress_socket_error
         self.last_state = STATES[2]
         self.state_flag = False
-        
+          
     def onStart(self):
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
             DumpConfigToLog()
-
+ 
         if len(Devices) == 0:
+            # Create a switch, suitable for all models
             Domoticz.Device(Name="switch", Unit=1, TypeName="Switch", Used=1).Create()
-            Domoticz.Log("Tp-Link smart plug device created")
+            Domoticz.Log("Tp-Link smart plug switch created")
 
-        if Parameters["Mode1"] in "HS110" and len(Devices) <= 1:
+        if "HS110" in Parameters["Mode1"] and create_device:
             # Create measuring devices here
             Domoticz.Device(Name="emeter current (A)", Unit=2, Type=243, Subtype=23).Create()
             Domoticz.Device(Name="emeter voltage (V)", Unit=3, Type=243, Subtype=8).Create()
-            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=29).Create()
-            
+            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=29).Create()  # Subtype 29 is kWh
+          
+        Domoticz.Debug("Number of devices: {}".format(str(len(Devices))))            
         state = self.get_switch_state()
         self.last_state = state
         self.set_domoticz_state(state)
@@ -97,8 +100,7 @@ class TpLinkSmartPlugPlugin:
         pass
 
     def onCommand(self, unit, command, level, hue):
-        Domoticz.Debug("onCommand called for Unit " +
-            str(unit) + ": Parameter '" + str(command) + "', Level: " + str(level))
+        Domoticz.Debug("onCommand called for Unit {}: Parameter {}, Level {}".format(str(unit), str(command), str(level)))
 
         if command.lower() == 'on':
             new_state = 1
@@ -125,8 +127,7 @@ class TpLinkSmartPlugPlugin:
         self.heartbeatcounter = 0
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
-        Domoticz.Debug("Notification: " + Name + "," + Subject + "," + Text + "," + Status +
-                     "," + str(Priority) + "," + Sound + "," + ImageFile)
+        Domoticz.Debug("Notification: {}, {}, {}, {}, {}, {}, {}".format(Name, Subject, Text, Status, str(Priority), Sound, ImageFile))
 
     def onDisconnect(self, Connection):
         Domoticz.Debug("onDisconnect called")
@@ -219,7 +220,7 @@ class TpLinkSmartPlugPlugin:
                   if HS110_divider == 1000:
                       Devices[2].Update(nValue=0, sValue=str(round(realtime_result['current_ma'] / 1000,2)))
                       Devices[3].Update(nValue=0, sValue=str(round(realtime_result['voltage_mv'] / 1000,2)))
-                      Devices[4].Update(nValue=0, sValue=str(round(realtime_result['power_mw'] / 1000,2)))
+                      Devices[4].Update(nValue=0, sValue=str(round(realtime_result['power_mw'] / 1000,2)) + ";" + str(realtime_result['total_wh']))
                   else:
                       Devices[2].Update(nValue=0, sValue=str(round(realtime_result['current'],2)))
                       Devices[3].Update(nValue=0, sValue=str(round(realtime_result['voltage'],2)))
@@ -232,7 +233,7 @@ class TpLinkSmartPlugPlugin:
             }
         }
         result = self._send_json_cmd(json.dumps(cmd))
-        Domoticz.Debug(str(result))
+        Domoticz.Debug("Result: {}".format(str(result)))
         err_code = result.get('system', {}).get('get_sysinfo', {}).get('err_code', 1)
         if err_code == 0:
             state = result['system']['get_sysinfo']['relay_state']
@@ -287,13 +288,13 @@ def onHeartbeat():
 def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
-            Domoticz.Debug("'" + x + "':'" + str(Parameters[x]) + "'")
-    Domoticz.Debug("Device count: " + str(len(Devices)))
+            Domoticz.Debug("'{}:{}'".format(x, str(Parameters[x])))
+    Domoticz.Debug("Device count: {}".format(str(len(Devices))))
     for x in Devices:
-        Domoticz.Debug("Device:           " + str(x) + " - " + str(Devices[x]))
-        Domoticz.Debug("Device ID:       '" + str(Devices[x].ID) + "'")
-        Domoticz.Debug("Device Name:     '" + Devices[x].Name + "'")
-        Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
-        Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
-        Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
+        Domoticz.Debug("Device:           {}-{}".format(str(x), str(Devices[x])))
+        Domoticz.Debug("Device ID:       '{}".format(str(Devices[x].ID)))
+        Domoticz.Debug("Device Name:     '{}".format(Devices[x].Name))
+        Domoticz.Debug("Device nValue:    {}".format(str(Devices[x].nValue)))
+        Domoticz.Debug("Device sValue:   '{}".format(Devices[x].sValue))
+        Domoticz.Debug("Device LastLevel: {}".format(str(Devices[x].LastLevel)))
     return
