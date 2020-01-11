@@ -8,7 +8,9 @@ A good reference also by lordzurp:
 https://github.com/lordzurp/domoticz-tplink-smartplug/blob/master/plugin.py
 
 ### Installation
-To install or update your current TP-Link HS100/110/v2 script, do the following.
+You must have the Domoticz Python Plugin Manager installed for this plugin to work.  Refer to https://www.domoticz.com/wiki/Python_Plugin_Manager
+
+To install or update your current TP-Link HS100/110/v2 plugin script, do the following.
 * Set your user defined variables in plugin.py.
 * Copy plugin.py to the Domoticz plugins folder
 Example: /home/pi/domoticz/plugins/hs110
