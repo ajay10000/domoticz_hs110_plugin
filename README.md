@@ -10,10 +10,12 @@ https://github.com/lordzurp/domoticz-tplink-smartplug/blob/master/plugin.py
 ### Installation
 You must have the Domoticz Python Plugin Manager installed for this plugin to work.  Refer to https://www.domoticz.com/wiki/Python_Plugin_Manager
 
-To install or update your current TP-Link HS100/110/v2 plugin script, do the following.
-* Set your user defined variables in plugin.py.
-* Copy plugin.py to the Domoticz plugins folder
-Example: /home/pi/domoticz/plugins/hs110
+The plugin.py script should be placed in a appropriately named folder under Domoticz -> plugins.  i.e. /home/pi/domoticz/plugins/hs110
+
+To install or update your TP-Link HS100/110/v2 plugin script, do the following.
+* Set your user defined variables in plugin.py and save.
+* Copy to or update plugin.py in the Domoticz plugins folder
+* For new installations, restart Domoticz, then add TP-Link HS100/110/v2 as new hardware in Setup -> Hardware, not via the Python Plugin Manager list.
 
 ### NOTES:
 * Change any Domoticz.Debug(...) lines to Domoticz.Log(...) to log specific lines to Domoticz without turning on Debug mode. 
@@ -27,6 +29,10 @@ https://github.com/domoticz/domoticz/blob/development/hardware/hardwaretypes.h
 
 * Refer to the Dommoticz 'Developing a Python plugin' wiki for useful information when modifying a plugin.
 https://www.domoticz.com/wiki/Developing_a_Python_plugin
+
+### Change log for v0.2.6 2020-05-08
+* Fixed bug incorrectly testing for model#. Bundled HS110 with HS110v2 in parameters, as no difference in code.
+* Deleted variable create_device and added this function as a parameter (Mode2) instead.  This only needs to be used when installing the plugin (Domoticz -> Hardware), then it can be turned off to prevent errors on startup in future.
 
 ### Change log for v0.2.5 2020-01-11
 * Added the 'create_device' flag to allow new devices to be created. Required on first run for plugin. Domoticz log will show device creation errors on subsequent plugin startup if this is left on, but this should not cause any issues.  Set to True if you wish to add a device.  Set to False once all devices are created.  Restart the plugin Hardware each time it is changed.

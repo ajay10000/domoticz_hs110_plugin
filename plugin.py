@@ -7,21 +7,19 @@
 # Modified by: Andrew P
 #
 """
-<plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110/v2" version="0.2.5">
+<plugin key="tplinksmartplug" name="TP-Link Wi-Fi Smart Plug HS100/HS110/v2" version="0.2.6">
     <description>
         <h2>TP-Link Wi-Fi Smart Plug</h2>
-        <ul style="list-sytel-type:square">
-            <li>on/off switching</li>
-            <li>emeter realtime power (HS110/v2)</li>
-            <li>emeter realtime current (HS110/v2)</li>
-            <li>emeter realtime voltage (HS110/v2)</li>
-        </ul>
-        <h3>Devices</h3>
         <ul style="list-style-type:square">
-            <li>switch - On/Off</li>
-            <li>power - Realtime power in watts</li>
-            <li>current - Realtime current in amps</li>
-            <li>voltage - Realtime voltage in volts</li>
+            <li>On/off switching (HS100 and HS110/HS110v2)</li>
+            <li>Realtime power, current and voltage (HS110/HS110v2 only)</li>
+        </ul>
+        <h3>Devices added to Domoticz:</h3>
+        <ul style="list-style-type:square">
+            <li>switch - On/Off (All models)</li>
+            <li>Realtime power in Watts (HS110/HS110v2)</li>
+            <li>Realtime current in Amps (HS110/HS110v2)</li>
+            <li>Realtime voltage in Volts (HS110/HS110v2)</li>
         </ul>
     </description>
     <params>
@@ -29,9 +27,14 @@
         <param field="Mode1" label="Model" width="150px" required="false">
              <options>
                 <option label="HS100" value="HS100" default="true"/>
-                <option label="HS110" value="HS110"  default="false" />
-                <option label="HS110v2" value="HS110v2"  default="false"/>
-                </options>
+                <option label="HS110/HS110v2" value="HS110"  default="false" />
+             </options>
+        </param>
+        <param field="Mode2" label="Add devices? (Only required on install then can be turned off)" width="75px">
+            <options>
+                <option label="True" value="True"/>
+                <option label="False" value="False"  default="true" />
+            </options>
         </param>
         <param field="Mode6" label="Debug" width="75px">
             <options>
@@ -45,11 +48,10 @@
 import json, socket, Domoticz
 
 # Start user editable variables
-base_url = "http://rpi3:8080/"  # Modify with your IP# or domain
+base_url = "http://rpi4:8080/"  # Modify with your IP# or domain
 interval = 1  # heartbeat in 10 second multiples
-HS110_divider = 1000  # 1000 or 1 depending on your hardware version of HS110
+HS110_divider = 1000  # 1000 or 1 depending on your firmware version of HS110
 suppress_socket_error = True  # Suppress error messages in Domoticz after the first
-create_device = False # True if you need to create a device. 
 # End user editable variables
 
 PORT = 9999
@@ -76,11 +78,11 @@ class TpLinkSmartPlugPlugin:
             Domoticz.Device(Name="switch", Unit=1, TypeName="Switch", Used=1).Create()
             Domoticz.Log("Tp-Link smart plug switch created")
 
-        if "HS110" in Parameters["Mode1"] and create_device:
+        if "HS110" in Parameters["Mode1"] and Parameters["Mode2"] == "True":
             # Create measuring devices here
-            Domoticz.Device(Name="emeter current (A)", Unit=2, Type=243, Subtype=23).Create()
-            Domoticz.Device(Name="emeter voltage (V)", Unit=3, Type=243, Subtype=8).Create()
-            Domoticz.Device(Name="emeter power (W)", Unit=4, Type=243, Subtype=29).Create()  # Subtype 29 is kWh
+            Domoticz.Device(Name="current (A)", Unit=2, Type=243, Subtype=23).Create()
+            Domoticz.Device(Name="voltage (V)", Unit=3, Type=243, Subtype=8).Create()
+            Domoticz.Device(Name="power (W)", Unit=4, Type=243, Subtype=29).Create()  # Subtype 29 is kWh
           
         Domoticz.Debug("Number of devices: {}".format(str(len(Devices))))            
         state = self.get_switch_state()
@@ -202,7 +204,7 @@ class TpLinkSmartPlugPlugin:
         return ret
 
     def update_emeter_values(self):
-        if Parameters["Mode1"] in "HS110":
+        if "HS110" in Parameters["Mode1"]:
             cmd = {
                 "emeter": {
                     "get_realtime": {}
